@@ -1,0 +1,465 @@
+#!/usr/bin/perl
+
+use strict ;
+use warnings ;
+use feature "switch";
+
+use v5.10.1;
+
+use Carp ;
+use IO::File ;
+use Scalar::Util qw{blessed} ;
+
+### SCRIPT CONFIGURATION ###############################################
+my $GITDIR     = q{/var/cfengine/git} ;
+my $TOOLDIR    = q{common/tools/deploy} ;
+my $HUBDBFILE  = q{hub.db} ;
+my $PROJDBFILE = q{projects.db} ;
+
+my $DEFAULT_BRANCH = 'master' ;
+my $DEFAULT_MASTERDIR = '/var/cfengine/masterfiles' ;
+### YOU SHOULD NOT CHANGE ANYTHING BELOW THIS LINE #####################
+
+# Dispatch table for the actions. The signature of the action_* subs is:
+#
+# targets => \%target,
+# call    => \%parms,
+# name    => $project_name,
+# type    => $project_type,
+# dir     => $project_dir
+#
+# Notice that list uses just call and name, while others require all
+# parameters to be set.
+my %dispatch =
+    ( deploy  => \&action_deploy_preview,
+      preview => \&action_deploy_preview,
+      diff    => \&action_diff,
+      show    => \&action_show,
+      list    => \&action_list ) ;
+
+# Sub-dispatch table for the action "list".
+my %displist =
+    ( projects => \&list_projects,
+      hubs     => \&list_hubs,
+      all_hubs => \&list_all_hubs ) ;
+
+my $MAKEDIR = "${GITDIR}/${TOOLDIR}" ;
+my @MAKEOPT = ( qw{-e -C}, $MAKEDIR ) ;
+my $HUBDB   = "${MAKEDIR}/${HUBDBFILE}" ;
+my $PROJDB  = "${MAKEDIR}/${PROJDBFILE}" ;
+
+usage(1) if @ARGV == 0 ;
+
+# Default action is deploy
+if (@ARGV == 1) {
+    unshift @ARGV,'deploy' ;
+}
+
+# Bail out if @ARGV has an odd number of elements
+usage(1) if @ARGV % 2 > 0 ;
+
+# Let's understand what's going on: for first, we extract the first two
+# elements of @ARGV into two variables, and the rest in a hash
+my ($action,$project_env,%parms) = @ARGV ;
+
+# Set the branch
+my $branch = exists $parms{branch}? $parms{branch}: $DEFAULT_BRANCH ;
+
+# Parse the project and the environment from $project_env
+my ($project,$env) = split(/-/,$project_env,2) ;
+
+# If the action requested is list, dispatch it here and stop
+if ( $action eq 'list' ) {
+    # list doesn't need all the stuff other actions do, the set of
+    # parameters will be thinner than the general case
+    $dispatch{$action}->( call => \%parms,
+			  name => $project ) ;
+    exit 0 ;
+}
+
+
+# If $env was not set ($project_env doesn't contain a dash), then we are
+# deploying in preproduction and production:
+$env = defined $env? qr/^$env$/i: qr{(prod|preprod|staging)} ;
+
+# Decide if we need an hub list or not.
+# For first, we need to know if the project is local or remote. If it's local,
+# we don't need an hub list (and we can ignore an hub parameter). If it's
+# remote, then we either have an hub parameter, or we need to parse an hub
+# list from the database
+
+# Load the project type
+# We read the CSV from inside a block so that all variables will be
+# undefined once we exit the block. We need $project_type later however,
+# and we declare it here
+my $project_name ;
+my $project_dir ;
+my $project_type ;
+{
+    my $types = IO::File->new($PROJDB,'r') ;
+    croak "Cannot open $PROJDB: $!" if not defined $types ;
+
+    while ( my $fields = parse_csv($types) ) {
+	($project_name,$project_dir,$project_type) = @$fields ;
+	last if $project_name eq $project ;
+    }
+
+    if (not defined $project_type) {
+	croak "No project type defined for project $project" ;
+    }
+
+    $types->close or carp "WARNING: Cannot close $PROJDB: $!" ;
+}
+
+# We now define an hash of actions that will be used to map an action
+# in cf-deploy to a Makefile target.
+my %target ;
+
+if ( $project_type eq 'remote' ) {
+    %target =
+	(
+	 deploy        => "deploy",
+	 preview       => "preview",
+	 diff          => "diff",
+	) ;
+}
+
+elsif ( $project_type eq 'local' ) {
+    %target =
+	(
+	 deploy        => "deploy_local",
+	 preview       => "preview_local",
+	 diff          => "diff_local",
+	) ;
+}
+
+else {
+    croak "project type $project_type unknown" ;
+}
+
+
+# Define the hub list
+if ( exists $parms{hub} ) {
+    $ENV{HUB_LIST} = $parms{hub} ;
+}
+
+else {
+    my @hublist = fetch_hublist( db      => $HUBDB,
+				 project => $project,
+				 env     => $env ) ;
+
+    if ( @hublist == 0 ) {
+	# croak on empty hublist
+	croak "The requested hub list is empty, aborting" ;
+    }
+
+    $ENV{HUB_LIST} = join(" ",@hublist) ;
+    $parms{hub} = \@hublist ;
+}
+
+# Start setting the environment, in case we get to run make
+$ENV{PROJECT}      = $project_dir ;
+$ENV{PROJECT_NAME} = $project_name ;
+$ENV{PROJECT_TYPE} = $project_type ;
+$ENV{BRANCH}       = $branch ;
+$ENV{MASTERDIR}    = $DEFAULT_MASTERDIR if not exists $ENV{MASTERDIR} ;
+
+# If the project is local, we need to set the MASTERDIR to the value
+# read from fetch_hublist
+$ENV{MASTERDIR}    = $ENV{HUB_LIST} if $project_type eq "local" ;
+
+
+# Now build the parameter has for the action sub:
+my %action_parms = ( targets => \%target,
+		     call    => \%parms,
+		     name    => $project_name,
+		     type    => $project_type,
+		     dir     => $project_dir ) ;
+
+# dispatch action
+$dispatch{$action}->(%action_parms) ;
+exit 0 ;
+
+########################################################################
+# Dispatch functions
+
+sub action_deploy_preview {
+    validate_action_parameters(@_) ;
+
+    # If we escaped alive up to here, we are reasonably safe, so...
+    my %parms = @_ ;
+
+    exec("make",@MAKEOPT,$parms{targets}->{$action}) ;
+}
+
+sub action_diff {
+    validate_action_parameters(@_) ;
+
+    # If we escaped alive up to here, we are reasonably safe, so...
+    my %parms = @_ ;
+
+    # Extract the hub name we want to diff against:
+    my $hub = $parms{call}->{hub} ;
+
+    # If it's a ref, bail out
+    if ( ref $hub ) {
+	croak "Action diff requires a single hub, bailing out" ;
+    }
+
+    # Set the SERVER environment variable to be used in diff:
+    $ENV{SERVER} = $hub ;
+
+    # If we get here, it's safe to diff
+    exec("make",@MAKEOPT,$parms{targets}->{$action}) ;
+}
+
+
+sub action_show {
+    validate_action_parameters(@_) ;
+
+    # If we escaped alive up to here, we are reasonably safe, so...
+    my %parms = @_ ;
+
+    say "Description for project $parms{name}" ;
+    say "Project type:   $parms{type}" ;
+    say "Git project ID: $parms{dir}" ;
+
+    my $call_hub = $parms{call}->{hub} ;
+    my @hubs     = ref $call_hub ? @$call_hub : $call_hub ;
+
+    if ( $parms{type} eq 'remote' ) {
+	say "Hubs:" ;
+	foreach my $hub (sort @hubs) { say "\t$hub" }
+    }
+
+    if ( $parms{type} eq 'local' ) {
+	my $hub = pop @hubs ;
+	say "Target dir:     $hub" ;
+    }
+}
+
+
+sub action_list {
+    validate_action_list_parameters(@_) ;
+
+    # If we get here, parameters are safe
+    my %parms = @_ ;
+
+    # dispatch list request
+    $displist{$parms{name}}->() ;
+}
+
+sub list_projects {
+    my $projdb = IO::File->new($PROJDB,'r') ;
+    croak "Cannot open $PROJDB: $!" if not defined $projdb ;
+
+    my @headers = ( 'Project name','Project dir','Project type' ) ;
+    my $width   = 12 ;
+    my $format  = "%-${width}s\t%-${width}s\t%-${width}s\n" ;
+
+    printf $format,@headers ;
+    printf $format,("-"x$width,"-"x$width,"-"x$width) ;
+
+    while ( my $fields = parse_csv($projdb) ) {
+	printf $format,@$fields ;
+    }
+}
+
+
+sub list_hubs {
+    my $hubdb = IO::File->new($HUBDB,'r') ;
+    croak "Cannot open $HUBDB: $!" if not defined $hubdb ;
+
+    # call caller() to understand if it was list_all_hubs to call
+    # us or not. caller() provides information about the call stack for
+    # this subroutine. caller(0) gives information about the subroutine
+    # itself, caller(1) gives information about the subroutine that called
+    # this one and so forth. The fourth parameter (index #3) is the
+    # subroutine name, hence the fourth parameter of caller(1) is the
+    # name of the calling subroutine.
+    my $sub_name = (caller(1))[3] ;
+
+    # If $sub_name is main::action_list (we were called by the action_list
+    # subroutine) we skip the test hubs. Other values (and, in particular,
+    # main::list_all_hubs) will include the test hubs
+    my $skip_test_hubs = $sub_name eq 'main::action_list' ? "1" : undef ;
+
+    my @hubs ;
+    while ( my $fields = parse_csv($hubdb) ) {
+	my ($loc,$proj,$env,$hub) = @$fields ;
+	$skip_test_hubs and next if $env eq 'test' ;
+	next if $hub =~ m{^/} ;
+	push @hubs,$hub ;
+    }
+
+    say join("\n",sort @hubs) ;
+    #say $sub_name ;
+}
+
+# Call list_hubs with the same value for @_. This will allow us to use
+# a single subroutine to list either all hubs or all-but-test hubs
+sub list_all_hubs { &list_hubs } 
+########################################################################
+# Parameter validation subs
+
+sub validate_generic {
+    my %parms = @_ ;
+
+    my @parmnames = qw{validate checklist} ;
+    {
+	# Validate my own parameters first
+
+	foreach my $name (@parmnames) {
+	    croak "Parameter $name is required"
+		if not exists $parms{$name} ;
+
+	    croak "Parameter $name must be an hashref"
+		if not ref($parms{$name}) eq 'HASH' ;
+	}
+
+	# We are safe here, go ahead
+    }
+
+    my %validate  = %{ $parms{validate} } ;
+    my %checklist = %{ $parms{checklist} } ;
+
+    foreach my $parameter (keys %checklist) {
+	if (not exists $validate{$parameter}) {
+	    croak "Missing parameter $parameter" ;
+	}
+
+	my $parm_type     = ref $validate{$parameter} ;
+	my $required_type = $checklist{$parameter} ;
+
+	if ( not $parm_type =~ m/^$required_type/ ) {
+	    croak "Parameter $parameter is of the wrong type (got $parm_type, expected $required_type)" ;
+	}
+
+	# If $parameter escaped alive until here, it's safe.
+    }
+
+    return "OK" ;
+}
+
+sub validate_action_parameters {
+    return validate_generic( validate  => { @_ },
+			     checklist => { targets  => "HASH",
+					    call     => "HASH",
+					    name     => "",
+					    type     => "",
+					    dir      => "" } ) ;
+}
+
+sub validate_action_list_parameters {
+    return validate_generic( validate  => { @_ },
+			     checklist => { call     => "HASH",
+					    name     => "" } ) ;
+}
+
+
+########################################################################
+# Utility subs
+
+sub fetch_hublist {
+    my %parms = @_ ;
+
+    croak "No db name"      if not exists $parms{db} ;
+    croak "No project name" if not exists $parms{project} ;
+    croak "No environment"  if not exists $parms{env} ;
+
+    my $dbhandle = IO::File->new($parms{db},'r') ;
+    if ( not defined $dbhandle ) {
+	croak "Cannot open hub db $parms{db}" ;
+    }
+
+    my @hubs ;
+    while ( my $record = parse_csv($dbhandle) ) {
+	my ($loc,$proj,$env,$hub) = @$record ;
+
+	# Skip if the project doesn't match
+	next if $proj ne $parms{project} ;
+
+	# Now we need to match the environment or the location
+	if ( $env =~ m/$parms{env}/ or $loc =~ m/$parms{env}/i ) {
+	    push @hubs,$hub ;
+	}
+    }
+
+    $dbhandle->close or carp "Can't close $parms{db}: $!" ;
+    return @hubs ;
+}
+
+
+sub parse_csv {
+    my ($handle) = @_ ;
+
+    # Check if $handle is an IO::File object; we first checks that
+    # it is a blessed reference using Scalar::Util::blessed and then
+    # use ->isa to ensure it is a IO::File object.
+    if ( blessed $handle ) {
+	croak "Not an IO::File object"
+	    unless $handle->isa("IO::File") ;
+    }
+
+    else {
+	croak "parse_csv requires an IO::File object" ;
+    }
+
+    return undef if $handle->eof ;
+    while ( my $record = $handle->getline ) {
+	return undef if not defined $record ;
+	next if $record =~ m{\s*#} ;
+	next if $record =~ m{^\s*$} ;
+
+	# OK, we have something to return
+	chomp $record ;
+	my @fields = split(/\s*,\s*/,$record) ;
+	return \@fields ;
+    }
+
+    # got here? We've reached the end of the file, all probably.
+    return undef ;
+}
+
+
+sub usage {
+    my ($error_code) = @_ ;
+
+    print qq{
+Usage:
+  $0 PROJECT_NAME
+    deploys project PROJECT_NAME on all hubs. It's a shortcut for
+    $0 deploy PROJECT_NAME
+
+  $0 deploy PROJECT_NAME [ branch BRANCH ] [ hub SERVER ]
+    Deploys PROJECT_NAME with the specified options
+
+  $0 preview PROJECT_NAME [ branch BRANCH ] [ hub SERVER ]
+    preview the changes that would be applied
+
+  $0 diff PROJECT_NAME hub SERVER [ branch BRANCH ]
+    runs a diff for a project (hub is mandatory)
+
+  $0 show PROJECT_NAME
+    Describes the project PROJECT_NAME, other options are ignored
+
+  $0 list projects
+    Lists all defined projects, other options are ignored
+
+  $0 list hubs
+    Lists all but the test hubs (normally they are the one you are
+    mostly interested in, but in case you are more curious...)
+
+  $0 list all_hubs
+    List absolutely all hubs, skipping none of them.
+
+  You can override the default branch of a project by using the keyword
+  branch. You can also override the project's hub list by specifying an
+  hub with the hub keyword -- notice that specifying a hub for a local
+  project is pointless
+
+} ;
+
+    exit $error_code ;
+}
+

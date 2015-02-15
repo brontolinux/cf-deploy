@@ -1,0 +1,10 @@
+# Location, Project,  Environment, CNAME
+Oslo,       myproj,   prod,        myproj-prod1.example.com
+Oslo,       myproj,   preprod,     myproj-pre1.example.com
+Amsterdam,  myproj,   test,        myproj-test.example.com
+Amsterdam,  myproj,   prod,        myproj-prod2.example.com
+Amsterdam,  myproj,   prod,        myproj-pre2.example.com
+New York,   shock,    prod,        shock-prod1.example.com
+New York,   shock,    test,        shock-test1.example.com
+Amsterdam,  shock,    test,        shock-test2.example.com
+Oslo,       home,     prod,        /etc/cfengine/test

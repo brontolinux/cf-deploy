@@ -1,0 +1,4 @@
+# project, directory, type
+myproj,    my,        remote
+shock,     shock,     remote
+home,      Private,   local
