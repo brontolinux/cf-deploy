@@ -5,8 +5,8 @@ SERVER=_UNDEFINED_
 
 RSYNC_USER=root
 RSYNC_PREPARE_OPTS=-a
-RSYNC_COMMON_OPTS=--delete --exclude .git --delete-excluded --no-owner --no-group --no-perms --no-times --checksum
-RSYNC_OPTS=$(RSYNC_PREPARE_OPTS) -vi $(RSYNC_COMMON_OPTS)
+RSYNC_COMMON_OPTS=--delete --exclude cf_promises_\* --no-owner --no-group --no-perms --no-times --checksum
+RSYNC_OPTS=$(RSYNC_PREPARE_OPTS) -viC $(RSYNC_COMMON_OPTS)
 
 DIFF_OPTS=-r -w -N
 
@@ -55,6 +55,7 @@ diff_local:    prepare run_diff_local  cleanup
 prepare: /bin/mktemp $(TMP_DIR) git_update
 	rsync $(RSYNC_PREPARE_OPTS) $(LOCALDIR)/common/     $(TMP_DIR)/
 	rsync $(RSYNC_PREPARE_OPTS) $(LOCALDIR)/$(PROJECT)/ $(TMP_DIR)/
+	git rev-parse HEAD > $(TMP_DIR)/policy_commit_id
 
 prepare_diff: $(DIFF_DIR)
 	rsync -z $(RSYNC_PREPARE_OPTS) $(RSYNC_COMMON_OPTS) $(RSYNC_USER)@$(SERVER):$(MASTERDIR)/ $(DIFF_DIR)/
