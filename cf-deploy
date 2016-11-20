@@ -11,13 +11,13 @@ use IO::File ;
 use Scalar::Util qw{blessed} ;
 
 ### SCRIPT CONFIGURATION ###############################################
-my $GITDIR     = q{/var/cfengine/git} ;
-my $TOOLDIR    = q{common/tools/deploy} ;
-my $HUBDBFILE  = q{hub.db} ;
-my $PROJDBFILE = q{projects.db} ;
+my $GITDIR     = $ENV{CFDEPLOY_GITDIR}     // q{/var/cfengine/git} ;
+my $TOOLDIR    = $ENV{CFDEPLOY_TOOLDIR}    // q{common/tools/deploy} ;
+my $HUBDBFILE  = $ENV{CFDEPLOY_HUBDBFILE}  // q{hub.db} ;
+my $PROJDBFILE = $ENV{CFDEPLOY_PROJDBFILE} // q{projects.db} ;
 
-my $DEFAULT_BRANCH = 'master' ;
-my $DEFAULT_MASTERDIR = '/var/cfengine/masterfiles' ;
+my $DEFAULT_BRANCH    = $ENV{CFDEPLOY_BRANCH}   // 'master' ;
+my $DEFAULT_MASTERDIR = $ENV{CFDEPLOY_MASTERDIR} // '/var/cfengine/masterfiles' ;
 ### YOU SHOULD NOT CHANGE ANYTHING BELOW THIS LINE #####################
 
 # Dispatch table for the actions. The signature of the action_* subs is:

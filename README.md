@@ -7,7 +7,11 @@ You can read more about this approach in my blog post ["Git repository and deplo
 
 # WARNING!!!!
 
-The code is perfectly functional but doesn't support an external configuration. All the configuration information is inside the cf-deploy script and the Makefile and you'll need to edit both to suit them to your environment. Or, better, you could **fork this project** and modify cf-deploy so that it reads its defaults from a configuration file and command line options -- I'll gladly accept pull requests to implement that. I am personally fond of [AppConfig](https://metacpan.org/release/AppConfig), but feel free to use any tool that fits.
+The code is perfectly functional but doesn't support a configuration file yet. Some support has been added in version 2 by means of environment variables. If environment variables are not set, the defaults hardcoded in the script and the Makefile are used.
+
+**ENSURE THAT THE ENVIRONMENT VARIABLES ARE EXPORTED TO SUB-SHELLS, OTHERWISE `cf-deploy` WON'T BE ABLE TO USE THEM!**
+
+You are more than welcome to **fork this project** and modify cf-deploy to add support for a configuration file and command line options. In that respect, I am personally fond of [AppConfig](https://metacpan.org/release/AppConfig), but feel free to use any library that does the job.
 
 
 # Components
@@ -25,11 +29,13 @@ A sample for hub.db and projects.db is provided.
 # Current defaults
 
 - you are using git; you can use a different tool (e.g.: svn, hg...) by changing the Makefile;
-- your local copy of the git repository is checked out in `/var/cfengine/git`, as set in the Makefile variable `LOCALDIR`;
-- cf-deploy and its database files are in `/var/cfengine/git/common/tools/deploy`, the name of cf-deploy's "databases" is also hardcoded in the script; **you are supposed to place/link cf-deploy in a directory in your PATH**
-- the master branch is deployed by default; it is set as a variable `BRANCH` in the Makefile but overridden in cf-deploy;
+- your local copy of the git repository is checked out in `$CFDEPLOY_GITDIR`, or `/var/cfengine/git` if the environment variable is not set
+- cf-deploy and its database files are in `$CFDEPLOY_GITDIR/$CFDEPLOY_TOOLDIR`; if `CFDEPLOY_TOOLDIR` is not provided, the value `common/tools/deploy` is used;
+- the hub database is in `$CFDEPLOY_GITDIR/$CFDEPLOY_TOOLDIR/$CFDEPLOY_HUBDBFILE`; if `CFDEPLOY_HUBDB` is not provided, the value `hub.db` is used;
+- the projects database is in `$CFDEPLOY_GITDIR/$CFDEPLOY_TOOLDIR/$CFDEPLOY_PROJDBFILE`; if `CFDEPLOY_PROJDB` is not provided, the value `projects.db` is used;
+- by default, cf-deploy will check out the branch `master`, unless a different default branch is provided in the variable `CFDEPLOY_BRANCH`; you can also override that default with the `branch` operand on the command line`;
+- when deploying to a remote server, the destination directory is `$CFDEPLOY_MASTERDIR`, or `/var/cfengine/masterfiles` if the environment variable is not set;
 - the files are deployed using rsync; you can use a different tool/system or different options for rsync by changing the Makefile;
-- when deploying to a remote server, the destination directory is `/var/cfengine/masterfiles` as set in the Makefile variable `MASTERDIR`; it is then overridden in cf-deploy;
 - the options using when diff-ing files are set in the Makefile in the variable `DIFF_OPTS`.
 
 
