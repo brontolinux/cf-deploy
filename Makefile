@@ -1,11 +1,14 @@
 BRANCH=master
 MASTERDIR=/var/cfengine/masterfiles
 LOCALDIR=/var/cfengine/git
+PROJECTDIR=$(LOCALDIR)/$(PROJECT)
+COMMONDIR=/dev/null
 SERVER=_UNDEFINED_
 
-RSYNC_USER=root
-RSYNC_PREPARE_OPTS=-a
-RSYNC_COMMON_OPTS=--delete --exclude cf_promises_\* --no-owner --no-group --no-perms --no-times --checksum
+RSYNC_USER=admin
+RSYNC_PREPARE_OPTS=-a --exclude .gitignore --exclude .vscode
+RSYNC_REMOTE_OPTS=--rsync-path='sudo rsync'
+RSYNC_COMMON_OPTS=--delete --exclude cf_promises_validated --no-owner --no-group --no-perms --no-times --checksum
 RSYNC_OPTS=$(RSYNC_PREPARE_OPTS) -viC $(RSYNC_COMMON_OPTS)
 
 DIFF_OPTS=-r -w -N
@@ -53,9 +56,9 @@ diff_local:    prepare run_diff_local  cleanup
 # HELPER TARGETS #######################################################
 
 prepare: /bin/mktemp $(TMP_DIR) git_update
-	rsync $(RSYNC_PREPARE_OPTS) $(LOCALDIR)/common/     $(TMP_DIR)/
-	rsync $(RSYNC_PREPARE_OPTS) $(LOCALDIR)/$(PROJECT)/ $(TMP_DIR)/
-	git rev-parse HEAD > $(TMP_DIR)/policy_commit_id
+	rsync $(RSYNC_PREPARE_OPTS) $(COMMONDIR)/           $(TMP_DIR)/
+	rsync $(RSYNC_PREPARE_OPTS) $(PROJECTDIR)/ $(TMP_DIR)/
+	cd $(PROJECTDIR) && echo "{ \"releaseId\": \"`git rev-parse HEAD`\" }" > $(TMP_DIR)/cf_promises_release_id
 
 prepare_diff: $(DIFF_DIR)
 	rsync -z $(RSYNC_PREPARE_OPTS) $(RSYNC_COMMON_OPTS) $(RSYNC_USER)@$(SERVER):$(MASTERDIR)/ $(DIFF_DIR)/
@@ -63,7 +66,7 @@ prepare_diff: $(DIFF_DIR)
 run_diff:
 	-diff $(DIFF_OPTS) $(DIFF_DIR)/ $(TMP_DIR)/
 
-run_diff_local:
+run_diff_locl:
 	-diff $(DIFF_OPTS) $(MASTERDIR) $(TMP_DIR)
 
 cleanup: $(TMP_DIR)
@@ -74,16 +77,16 @@ distclean:
 	-rm -rf $(TMP_BASE)/cf-deploy-tmp-*
 
 
-git_update: $(LOCALDIR)
-	-cd $(LOCALDIR) && git fetch
-	cd $(LOCALDIR) && git checkout $(BRANCH)
-	-cd $(LOCALDIR) && git pull
+git_update: $(PROJECTDIR)
+	-cd $(PROJECTDIR) && git fetch
+	cd $(PROJECTDIR) && git checkout $(BRANCH)
+	-cd $(PROJECTDIR) && git pull
 
 sync_multi:
 	for SERVER in $(HUB_LIST) ; \
 	do \
 	echo "on $$SERVER" ; \
-	rsync -z $(RSYNC_OPTS) $(TMP_DIR)/ $(RSYNC_USER)@$$SERVER:$(MASTERDIR)/ ; \
+	rsync -z $(RSYNC_OPTS) $(RSYNC_REMOTE_OPTS) $(TMP_DIR)/ $(RSYNC_USER)@$$SERVER:$(MASTERDIR)/ ; \
 	done
 
 sync_local:
