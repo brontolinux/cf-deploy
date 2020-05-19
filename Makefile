@@ -1,3 +1,5 @@
+# All these variables are defaults, can be overridden by setting them on
+# the command line or exporting them in the shell environment
 BRANCH=master
 MASTERDIR=/var/cfengine/masterfiles
 LOCALDIR=/var/cfengine/git
@@ -61,12 +63,12 @@ prepare: /bin/mktemp $(TMP_DIR) git_update
 	cd $(PROJECTDIR) && echo "{ \"releaseId\": \"`git rev-parse HEAD`\" }" > $(TMP_DIR)/cf_promises_release_id
 
 prepare_diff: $(DIFF_DIR)
-	rsync -z $(RSYNC_PREPARE_OPTS) $(RSYNC_COMMON_OPTS) $(RSYNC_USER)@$(SERVER):$(MASTERDIR)/ $(DIFF_DIR)/
+	rsync -z $(RSYNC_PREPARE_OPTS) $(RSYNC_COMMON_OPTS) $(RSYNC_REMOTE_OPTS) $(RSYNC_USER)@$(SERVER):$(MASTERDIR)/ $(DIFF_DIR)/
 
 run_diff:
 	-diff $(DIFF_OPTS) $(DIFF_DIR)/ $(TMP_DIR)/
 
-run_diff_locl:
+run_diff_local:
 	-diff $(DIFF_OPTS) $(MASTERDIR) $(TMP_DIR)
 
 cleanup: $(TMP_DIR)
@@ -96,7 +98,7 @@ syncview_multi:
 	for SERVER in $(HUB_LIST) ; \
 	do \
 	echo "on $$SERVER" ; \
-	rsync -n $(RSYNC_OPTS) $(TMP_DIR)/ $(RSYNC_USER)@$$SERVER:$(MASTERDIR)/ ; \
+	rsync -n $(RSYNC_OPTS) $(RSYNC_REMOTE_OPTS) $(TMP_DIR)/ $(RSYNC_USER)@$$SERVER:$(MASTERDIR)/ ; \
 	echo "" ; \
 	done
 
