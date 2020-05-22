@@ -6,8 +6,6 @@ In the beginning, we solved the problem through a makefile, which worked but was
 
 The previous releases of cf-deploy however carried with them the legacy of the environment they come from. For example, there was a number of settings and assumptions that made sense in the environment where the tool was born, but out of that environment they made the tool difficult to configure, or even unusable. Recently I had the need to use cf-deploy again to manage a personal project, I hit those shortcomings myself and I decided to fix them. **Welcome to cf-deploy v4**.
 
-cf-deploy is configured through shell environment variables. The names used in the sections that follow refer to those variables.
-
 
 # Installation
 
@@ -57,7 +55,7 @@ A line like:
 home,      Private,   local
 ```
 
-defines a project called `home`. The files related to that project will be found in `$CFDEPLOY_GITDIR/home` and will be deployed to the local directory defined in the hub database that is described in the next section.
+defines a project called `home`. The files related to that project will be found in `$CFDEPLOY_GITDIR/Private` and will be deployed to the local directory defined in the hub database that is described in the next section.
 
 
 ## The hub database file (hub.db)
@@ -73,6 +71,25 @@ Each line/record in the file has four fields separated by commas:
 * the *environment* that is served by this hub; names like `prod`, `preprod` and `staging` are special to cf-deploy, as these are the environments that will be deployed by default if nothing else is specified; any other name that you will set for the environment of an hub (e.g.: `test`) will result in the hub not receiving updates by default, unless you explicitly deploy to that hub or that environment;
 * the fourth field is an *identifier for the hub* that will receive your project; for remote projects, this will be a *hostname or an IP address*; for local projects, this will be a *directory*.
 
+A set of lines like these:
+
+```
+Oslo,       myproj,   prod,        myproj-prod1.example.com
+Oslo,       myproj,   preprod,     myproj-pre1.example.com
+Amsterdam,  myproj,   test,        myproj-test.example.com
+Amsterdam,  myproj,   prod,        myproj-prod2.example.com
+Amsterdam,  myproj,   preprod,     myproj-pre2.example.com
+```
+
+defines the hubs for the project `myprod`. The projects spans two locations: Oslo and Amsterdam. It has one production and one preproduction hub in each location and, in addition, has a test hub in Amsterdam. When deploying the project, only the test hub in Amsterdam will be left out, unless explicitly requested.
+
+This line:
+
+```
+Oslo,       home,     prod,        /etc/cfengine/test
+```
+
+sets for the local project `home`, located in Oslo, that it will be deployed in the directory `/etc/cfengine/test`.
 
 ## Changing the behaviour of cf-deploy
 
@@ -118,15 +135,85 @@ The default for this variable is `/var/cfengine/masterfiles`
 
 cf-deploy sets some environment variables before running `make` to steer the behaviour of make. These variables are, in a way, the API of cf-deploy.
 
-TBD
+### `HUB_LIST`
+
+A space separated list of hubs where the project will be deployed.
+
+### `PROJECT_NAME`
+
+Name of the project to deploy.
+
+### `PROJECT`
+
+Name of the subdirectory where the project is located.
+
+### `PROJECT_TYPE`
+
+Type of the project: `remote` or `local`.
+
+### `BRANCH`
+
+Branch to be deployed.
+
+### `LOCALDIR`
+
+Directory under which the files for each project are located. Same as `CFDEPLOY_GITDIR`.
+
+### `COMMONDIR`
+
+Directory where the common libraries, shared with all projects, are located. Same as `CFDEPLOY_COMMONDIR`. 
+
+### `MASTERDIR`
+
+For remote projects, this variable will be set the same as `CFDEPLOY_MASTERDIR`, unless the variable is already set in the environment. If the variable is already set, its value will **not** be overridden. 
+
+For local projects, cf-deploy will set this variable to the directory where the project will be deployed.
+
+### `SERVER`
+
+Used with the `diff` command of cf-deploy. The command compares the files in the project with those present on the hub `$SERVER` and shows the differences.
+
 
 ## Environment variables used by the Makefile and not set by cf-deploy
 
 There are more variables used in the Makefile that are **not** set by cf-deploy and will not be overridden by it. You can further refine the behaviour of cf-deploy by setting these variables.
 
-TBD
+### `RSYNC_USER`
 
-# cf-deploy command line
+When deploying via `rsync`, this user will be used to log in the remote hub.
+
+### `RSYNC_PREPARE_OPTS`
+
+When deployng via `rsync`, these are the options that will be used, along with `RSYNC_COMMON_OPTS` in the preparation phase: the project files and the common files will be copied in a temporary directory before they are then synchronised to their final destination.
+
+### `RSYNC_REMOTE_OPTS`
+
+Special options that will be used with `rsync` when synchronising a project to remote hubs, along with `RSYNC_COMMON_OPTS`.
+
+### `RSYNC_COMMON_OPTS`
+
+`rsync` options used for all operations, both for remote and local projects.
+
+### `RSYNC_OPTS`
+
+Basic options for `rsync`, built using ` RSYNC_PREPARE_OPTS` and `RSYNC_COMMON_OPTS`.
+
+### `DIFF_OPTS`
+
+Options to use when diff-ing files with the `cf-deploy diff` command.
+
+### `TMP_BASE`
+
+Base directory for the temporary directory where project and common files are merged. Normally, `/var/tmp`.
+
+### `TMP_TEMPLATE`
+
+Template used with `mktemp` to build the name for a temporary directory where project and common files are merged.
+
+
+
+
+# Using cf-deploy
 
 This section illustrates the cf-deploy command line, and the `make` command run by each cf-deploy command
 
@@ -136,7 +223,7 @@ Shows the help page
 
 ## cf-deploy *PROJECT_NAME*
 
-Equivalent to `cf-deploy deploy `*`PROJECT_NAME`*
+Equivalent to `cf-deploy deploy` *`PROJECT_NAME`*
 
 ## cf-deploy deploy *PROJECT_NAME* [ branch *BRANCH* ] [ hub *SERVER* ]
 
@@ -160,13 +247,34 @@ Note that **you cannot combine locations and environments in the same command**,
 
 If `branch` is specified, it deploys the branch *BRANCH* instead of the default branch. If `hub` is specified, it will deploy only on the hub *HUB*.
 
-cf-deploy sets its environment variables and then runs the following command:
+cf-deploy sets its environment variables and then runs the following command for remote projects:
 
 ```make -e -C $CF_DEPLOY_TOOLDIR deploy```
 
+and this command for local projects:
+
+```make -e -C $CF_DEPLOY_TOOLDIR deploy_local```
+
 ## cf-deploy preview *PROJECT_NAME* [ branch *BRANCH* ] [ hub *SERVER* ]
 
-TBC
+Same as `cf-deploy deploy`, but the `rsync` command will be run in *dry run* mode, showing which files would be updated if `cf-deploy deploy` is run.
+
+## cf-deploy diff *PROJECT_NAME* hub *SERVER* [ branch *BRANCH* ]
+
+Copies the project files for `PROJECT_NAME` from `SERVER` to a temporary directory, then deploys the project files into a second temporary directory, then runs a recursive `diff` on the two directories, and finally it cleans up. If a different branch is not specified explicitly, the default branch for the project will be used.
+
+## cf-deploy show *PROJECT_NAME*
+
+TBD
+
+## cf-deploy list projects
+
+TBD
+
+## cf-deploy list all_hubs
+
+TBD
+
 
 
 ## Sample settings
