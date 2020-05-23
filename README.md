@@ -348,7 +348,11 @@ This is an internal command and doesn't activate any `make` target.
 
 ## Makefile targets not exercised by cf-deploy
 
-The Makefile has a `distclean` target that can be used to clean up any temporary directory that was left over by cf-deploy, e.g. when the program was interrupted before it could clean up after itself.
+The Makefile has a `distclean` target that can be used to clean up any temporary directory that was left over by cf-deploy, e.g. when the program was interrupted before it could clean up after itself. Provided that you have properly configured cf-deploy, just run:
+
+```make -C $CFDEPLOY_TOOLDIR distclean```
+
+and `make` will take care of the leftovers.
 
 
 # References
