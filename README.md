@@ -17,8 +17,10 @@ One of the shortcomings was the documentation. I thought that the on-line help p
 
 # Installation
 
-1. clone the repository in a directory (we'll call it `CFDEPLOY_TOOLDIR`)
-2. copy or link `cf-deploy` in a directory in your path
+1. head to https://github.com/brontolinux/cf-deploy and choose in which way you willclone the repository
+2. clone the repository in a directory
+3. copy or link `cf-deploy` in a directory in your path
+4. (recommended) copy the Makefile in a separate directory, where you will also place the other configuration files; we'll call that directory `CFDEPLOY_TOOLDIR`
 
 
 # Configuration
