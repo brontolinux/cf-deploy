@@ -12,11 +12,12 @@ use Scalar::Util qw{blessed} ;
 
 ### SCRIPT CONFIGURATION ###############################################
 my $GITDIR     = $ENV{CFDEPLOY_GITDIR}     // q{/var/cfengine/git} ;
-my $TOOLDIR    = $ENV{CFDEPLOY_TOOLDIR}    // q{common/tools/deploy} ;
-my $HUBDBFILE  = $ENV{CFDEPLOY_HUBDBFILE}  // q{hub.db} ;
-my $PROJDBFILE = $ENV{CFDEPLOY_PROJDBFILE} // q{projects.db} ;
+my $TOOLDIR    = $ENV{CFDEPLOY_TOOLDIR}    // qq{$GITDIR/common/tools/deploy} ;
+my $COMMONDIR  = $ENV{CFDEPLOY_COMMONDIR}  // qq{$GITDIR/common} ;
+my $HUBDBFILE  = $ENV{CFDEPLOY_HUBDBFILE}  // qq{$TOOLDIR/hub.db} ;
+my $PROJDBFILE = $ENV{CFDEPLOY_PROJDBFILE} // qq{$TOOLDIR/projects.db} ;
 
-my $DEFAULT_BRANCH    = $ENV{CFDEPLOY_BRANCH}   // 'master' ;
+my $DEFAULT_BRANCH    = $ENV{CFDEPLOY_BRANCH}    // 'master' ;
 my $DEFAULT_MASTERDIR = $ENV{CFDEPLOY_MASTERDIR} // '/var/cfengine/masterfiles' ;
 ### YOU SHOULD NOT CHANGE ANYTHING BELOW THIS LINE #####################
 
@@ -43,10 +44,10 @@ my %displist =
       hubs     => \&list_hubs,
       all_hubs => \&list_all_hubs ) ;
 
-my $MAKEDIR = "${GITDIR}/${TOOLDIR}" ;
+my $MAKEDIR = "${TOOLDIR}" ;
 my @MAKEOPT = ( qw{-e -C}, $MAKEDIR ) ;
-my $HUBDB   = "${MAKEDIR}/${HUBDBFILE}" ;
-my $PROJDB  = "${MAKEDIR}/${PROJDBFILE}" ;
+my $HUBDB   = "${HUBDBFILE}" ;
+my $PROJDB  = "${PROJDBFILE}" ;
 
 usage(1) if @ARGV == 0 ;
 
@@ -73,7 +74,7 @@ if ( $action eq 'list' ) {
     # list doesn't need all the stuff other actions do, the set of
     # parameters will be thinner than the general case
     $dispatch{$action}->( call => \%parms,
-			  name => $project ) ;
+            			  name => $project ) ;
     exit 0 ;
 }
 
@@ -100,12 +101,12 @@ my $project_type ;
     croak "Cannot open $PROJDB: $!" if not defined $types ;
 
     while ( my $fields = parse_csv($types) ) {
-	($project_name,$project_dir,$project_type) = @$fields ;
-	last if $project_name eq $project ;
+    	($project_name,$project_dir,$project_type) = @$fields ;
+    	last if $project_name eq $project ;
     }
 
     if (not defined $project_type) {
-	croak "No project type defined for project $project" ;
+    	croak "No project type defined for project $project" ;
     }
 
     $types->close or carp "WARNING: Cannot close $PROJDB: $!" ;
@@ -145,12 +146,12 @@ if ( exists $parms{hub} ) {
 
 else {
     my @hublist = fetch_hublist( db      => $HUBDB,
-				 project => $project,
-				 env     => $env ) ;
+                				 project => $project,
+                				 env     => $env ) ;
 
     if ( @hublist == 0 ) {
 	# croak on empty hublist
-	croak "The requested hub list is empty, aborting" ;
+    	croak "The requested hub list is empty, aborting" ;
     }
 
     $ENV{HUB_LIST} = join(" ",@hublist) ;
@@ -162,6 +163,8 @@ $ENV{PROJECT}      = $project_dir ;
 $ENV{PROJECT_NAME} = $project_name ;
 $ENV{PROJECT_TYPE} = $project_type ;
 $ENV{BRANCH}       = $branch ;
+$ENV{LOCALDIR}     = qq{$GITDIR} ;
+$ENV{COMMONDIR}    = $COMMONDIR ;
 $ENV{MASTERDIR}    = $DEFAULT_MASTERDIR if not exists $ENV{MASTERDIR} ;
 
 # If the project is local, we need to set the MASTERDIR to the value
@@ -171,10 +174,10 @@ $ENV{MASTERDIR}    = $ENV{HUB_LIST} if $project_type eq "local" ;
 
 # Now build the parameter has for the action sub:
 my %action_parms = ( targets => \%target,
-		     call    => \%parms,
-		     name    => $project_name,
-		     type    => $project_type,
-		     dir     => $project_dir ) ;
+        		     call    => \%parms,
+        		     name    => $project_name,
+        		     type    => $project_type,
+        		     dir     => $project_dir ) ;
 
 # dispatch action
 $dispatch{$action}->(%action_parms) ;
@@ -203,7 +206,7 @@ sub action_diff {
 
     # If it's a ref, bail out
     if ( ref $hub ) {
-	croak "Action diff requires a single hub, bailing out" ;
+    	croak "Action diff requires a single hub, bailing out" ;
     }
 
     # Set the SERVER environment variable to be used in diff:
@@ -228,13 +231,13 @@ sub action_show {
     my @hubs     = ref $call_hub ? @$call_hub : $call_hub ;
 
     if ( $parms{type} eq 'remote' ) {
-	say "Hubs:" ;
-	foreach my $hub (sort @hubs) { say "\t$hub" }
+    	say "Hubs:" ;
+    	foreach my $hub (sort @hubs) { say "\t$hub" }
     }
 
     if ( $parms{type} eq 'local' ) {
-	my $hub = pop @hubs ;
-	say "Target dir:     $hub" ;
+    	my $hub = pop @hubs ;
+    	say "Target dir:     $hub" ;
     }
 }
 
@@ -261,7 +264,7 @@ sub list_projects {
     printf $format,("-"x$width,"-"x$width,"-"x$width) ;
 
     while ( my $fields = parse_csv($projdb) ) {
-	printf $format,@$fields ;
+    	printf $format,@$fields ;
     }
 }
 
@@ -286,10 +289,10 @@ sub list_hubs {
 
     my @hubs ;
     while ( my $fields = parse_csv($hubdb) ) {
-	my ($loc,$proj,$env,$hub) = @$fields ;
-	$skip_test_hubs and next if $env eq 'test' ;
-	next if $hub =~ m{^/} ;
-	push @hubs,$hub ;
+    	my ($loc,$proj,$env,$hub) = @$fields ;
+    	$skip_test_hubs and next if $env eq 'test' ;
+    	next if $hub =~ m{^/} ;
+    	push @hubs,$hub ;
     }
 
     say join("\n",sort @hubs) ;
@@ -299,6 +302,7 @@ sub list_hubs {
 # Call list_hubs with the same value for @_. This will allow us to use
 # a single subroutine to list either all hubs or all-but-test hubs
 sub list_all_hubs { &list_hubs } 
+
 ########################################################################
 # Parameter validation subs
 
@@ -343,17 +347,17 @@ sub validate_generic {
 
 sub validate_action_parameters {
     return validate_generic( validate  => { @_ },
-			     checklist => { targets  => "HASH",
-					    call     => "HASH",
-					    name     => "",
-					    type     => "",
-					    dir      => "" } ) ;
+            			     checklist => { targets  => "HASH",
+                    					    call     => "HASH",
+                    					    name     => "",
+                    					    type     => "",
+                    					    dir      => "" } ) ;
 }
 
 sub validate_action_list_parameters {
     return validate_generic( validate  => { @_ },
-			     checklist => { call     => "HASH",
-					    name     => "" } ) ;
+            			     checklist => { call     => "HASH",
+                    					    name     => "" } ) ;
 }
 
 
@@ -369,20 +373,20 @@ sub fetch_hublist {
 
     my $dbhandle = IO::File->new($parms{db},'r') ;
     if ( not defined $dbhandle ) {
-	croak "Cannot open hub db $parms{db}" ;
+    	croak "Cannot open hub db $parms{db}" ;
     }
 
     my @hubs ;
     while ( my $record = parse_csv($dbhandle) ) {
-	my ($loc,$proj,$env,$hub) = @$record ;
+    	my ($loc,$proj,$env,$hub) = @$record ;
 
-	# Skip if the project doesn't match
-	next if $proj ne $parms{project} ;
+    	# Skip if the project doesn't match
+    	next if $proj ne $parms{project} ;
 
-	# Now we need to match the environment or the location
-	if ( $env =~ m/$parms{env}/ or $loc =~ m/$parms{env}/i ) {
-	    push @hubs,$hub ;
-	}
+    	# Now we need to match the environment or the location
+    	if ( $env =~ m/$parms{env}/ or $loc =~ m/$parms{env}/i ) {
+    	    push @hubs,$hub ;
+    	}
     }
 
     $dbhandle->close or carp "Can't close $parms{db}: $!" ;
@@ -402,19 +406,19 @@ sub parse_csv {
     }
 
     else {
-	croak "parse_csv requires an IO::File object" ;
+    	croak "parse_csv requires an IO::File object" ;
     }
 
     return undef if $handle->eof ;
     while ( my $record = $handle->getline ) {
-	return undef if not defined $record ;
-	next if $record =~ m{\s*#} ;
-	next if $record =~ m{^\s*$} ;
+    	return undef if not defined $record ;
+    	next if $record =~ m{\s*#} ;
+    	next if $record =~ m{^\s*$} ;
 
-	# OK, we have something to return
-	chomp $record ;
-	my @fields = split(/\s*,\s*/,$record) ;
-	return \@fields ;
+    	# OK, we have something to return
+    	chomp $record ;
+    	my @fields = split(/\s*,\s*/,$record) ;
+    	return \@fields ;
     }
 
     # got here? We've reached the end of the file, all probably.
@@ -447,7 +451,7 @@ Usage:
     Lists all defined projects, other options are ignored
 
   $0 list hubs
-    Lists all but the test hubs (normally they are the one you are
+    Lists all but the test hubs (these are the ones you normally are
     mostly interested in, but in case you are more curious...)
 
   $0 list all_hubs
