@@ -29,7 +29,7 @@ The configuraton of cf-deploy is composed of:
 2. the hubs database file;
 3. a set of environment variables defined in your shell
 
-These three configuration components provide to cf-deploy the information about where your project repositories are, where the files shared by all projects are, and where they must be deployed.
+These three configuration components provide cf-deploy with the information about where your project repositories are, where the files shared by all projects are, and where they must be deployed.
 
 
 ## Project repositories
@@ -234,15 +234,17 @@ Template used with `mktemp` to build the name for a temporary directory where pr
 
 # Using cf-deploy
 
-This section illustrates the cf-deploy command line, and the `make` command run by each cf-deploy command
+This section illustrates the cf-deploy command line. Where a `make` command is issued, it will also show the `make` command run by cf-deploy.
 
 ## cf-deploy
 
 Run without arguments, cf-deploy shows the help page.
 
+This is an internal command and doesn't activate any `make` target.
+
 ## cf-deploy *PROJECT_NAME*
 
-Equivalent to `cf-deploy deploy` *`PROJECT_NAME`*
+Equivalent to `cf-deploy deploy` *`PROJECT_NAME`*. See below.
 
 ## cf-deploy deploy *PROJECT_NAME* [ branch *BRANCH* ] [ hub *SERVER* ]
 
