@@ -148,6 +148,20 @@ For *local* projects, this variable will be ignored because the local directory 
 
 The default for this variable is `/var/cfengine/masterfiles`
 
+### Sample settings
+
+These are the settings I am currently using in a personal project of mine. All of my projects are kept in repositories under the directory `/home/bronto/Lab`; the makefile is in `/home/bronto/Lab/cf-deploy`, while the project and hub database files are in `/home/bronto/Lab/CMdata/services/files/cf-deploy`.
+
+```
+CFDEPLOY_BRANCH=master
+CFDEPLOY_COMMONDIR=/home/bronto/Lab/CMdata
+CFDEPLOY_GITDIR=/home/bronto/Lab
+CFDEPLOY_HUBDBFILE=/home/bronto/Lab/CMdata/services/files/cf-deploy/hub.db
+CFDEPLOY_PROJDBFILE=/home/bronto/Lab/CMdata/services/files/cf-deploy/projects.db
+CFDEPLOY_TOOLDIR=/home/bronto/Lab/cf-deploy
+```
+
+
 
 # Fine tuning cf-deploy
 
@@ -336,19 +350,6 @@ This is an internal command and doesn't activate any `make` target.
 
 The Makefile has a `distclean` target that can be used to clean up any temporary directory that was left over by cf-deploy, e.g. when the program was interrupted before it could clean up after itself.
 
-
-# Sample settings
-
-These are the settings I am currently using in a personal project of mine. All of my projects are kept in repositories under the directory `/home/bronto/Lab`; the makefile is in `/home/bronto/Lab/cf-deploy`, while the project and hub database files are in `/home/bronto/Lab/CMdata/services/files/cf-deploy`.
-
-```
-CFDEPLOY_BRANCH=master
-CFDEPLOY_COMMONDIR=/home/bronto/Lab/CMdata
-CFDEPLOY_GITDIR=/home/bronto/Lab
-CFDEPLOY_HUBDBFILE=/home/bronto/Lab/CMdata/services/files/cf-deploy/hub.db
-CFDEPLOY_PROJDBFILE=/home/bronto/Lab/CMdata/services/files/cf-deploy/projects.db
-CFDEPLOY_TOOLDIR=/home/bronto/Lab/cf-deploy
-```
 
 # References
 
