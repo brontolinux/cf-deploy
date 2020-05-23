@@ -451,7 +451,7 @@ Usage:
     Lists all defined projects, other options are ignored
 
   $0 list hubs
-    Lists all but the test hubs (normally they are the one you are
+    Lists all but the test hubs (these are the ones you normally are
     mostly interested in, but in case you are more curious...)
 
   $0 list all_hubs
