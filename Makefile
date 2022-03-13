@@ -8,10 +8,10 @@ COMMONDIR=/dev/null
 SERVER=_UNDEFINED_
 
 RSYNC_USER=admin
-RSYNC_PREPARE_OPTS=-a --exclude .gitignore --exclude .vscode
+RSYNC_PREPARE_OPTS=-aC --exclude cf_promises_validated --exclude .gitignore --exclude .vscode --include core
 RSYNC_REMOTE_OPTS=--rsync-path='sudo rsync'
-RSYNC_COMMON_OPTS=--delete --exclude cf_promises_validated --no-owner --no-group --no-perms --no-times --checksum
-RSYNC_OPTS=$(RSYNC_PREPARE_OPTS) -viC $(RSYNC_COMMON_OPTS)
+RSYNC_COMMON_OPTS=--delete --no-owner --no-group --no-perms --no-times --checksum
+RSYNC_OPTS=$(RSYNC_PREPARE_OPTS) -vi $(RSYNC_COMMON_OPTS)
 
 DIFF_OPTS=-r -w -N
 
@@ -63,7 +63,7 @@ prepare: /bin/mktemp $(TMP_DIR) git_update
 	cd $(PROJECTDIR) && echo "{ \"releaseId\": \"`git rev-parse HEAD`\" }" > $(TMP_DIR)/cf_promises_release_id
 
 prepare_diff: $(DIFF_DIR)
-	rsync -z $(RSYNC_PREPARE_OPTS) $(RSYNC_COMMON_OPTS) $(RSYNC_REMOTE_OPTS) $(RSYNC_USER)@$(SERVER):$(MASTERDIR)/ $(DIFF_DIR)/
+	rsync -z $(RSYNC_OPTS) $(RSYNC_USER)@$(SERVER):$(MASTERDIR)/ $(DIFF_DIR)/
 
 run_diff:
 	-diff $(DIFF_OPTS) $(DIFF_DIR)/ $(TMP_DIR)/
@@ -98,7 +98,7 @@ syncview_multi:
 	for SERVER in $(HUB_LIST) ; \
 	do \
 	echo "on $$SERVER" ; \
-	rsync -n $(RSYNC_OPTS) $(RSYNC_REMOTE_OPTS) $(TMP_DIR)/ $(RSYNC_USER)@$$SERVER:$(MASTERDIR)/ ; \
+	rsync -n  $(RSYNC_REMOTE_OPTS) $(RSYNC_OPTS) $(TMP_DIR)/ $(RSYNC_USER)@$$SERVER:$(MASTERDIR)/ ; \
 	echo "" ; \
 	done
 
